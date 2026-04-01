@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, FormEvent } from "react";
+import { type Recipe } from "@/app/types";
+import RecipeCard from "@/app/components/RecipeCard";
 
 const STORAGE_KEY = "grubhub-pantry";
 
@@ -22,6 +24,9 @@ export default function PantryManager() {
   const [input, setInput] = useState("");
   const [mounted, setMounted] = useState(false);
   const [justAdded, setJustAdded] = useState<string | null>(null);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -55,6 +60,33 @@ export default function PantryManager() {
 
   function handleRemove(ingredient: string) {
     persist(ingredients.filter((i) => i !== ingredient));
+  }
+
+  async function handleFindRecipes() {
+    setLoading(true);
+    setError(null);
+    setRecipes([]);
+
+    try {
+      const res = await fetch("/api/recipes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ingredients }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Something went wrong.");
+        return;
+      }
+
+      setRecipes(data.recipes);
+    } catch {
+      setError("Failed to fetch recipes. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (!mounted) {
@@ -121,9 +153,34 @@ export default function PantryManager() {
 
       {/* Find Recipes button */}
       {ingredients.length > 0 && (
-        <button className="btn-brutal animate-slide-up mt-2 w-full rounded-xl border-3 border-border bg-accent py-4 font-black text-white text-lg shadow-brutal-lg">
-          Find Recipes 🍽️
+        <button
+          onClick={handleFindRecipes}
+          disabled={loading}
+          className="btn-brutal animate-slide-up mt-2 w-full rounded-xl border-3 border-border bg-accent py-4 font-black text-white text-lg shadow-brutal-lg disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {loading ? "Cooking up ideas..." : "Find Recipes 🍽️"}
         </button>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div className="rounded-xl border-3 border-border bg-pink/30 px-5 py-3 text-sm font-bold text-text-primary">
+          {error}
+        </div>
+      )}
+
+      {/* Recipe results */}
+      {recipes.length > 0 && (
+        <div className="mt-4 flex flex-col gap-5">
+          <h3 className="text-xs font-black uppercase tracking-widest text-text-secondary">
+            Here&apos;s what you can make
+          </h3>
+          {recipes.map((recipe, i) => (
+            <div key={i} className="animate-slide-up" style={{ animationDelay: `${i * 100}ms` }}>
+              <RecipeCard recipe={recipe} />
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
